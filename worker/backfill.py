@@ -29,8 +29,12 @@ def backfill_user(username: str):
         "ucprop": "ids|title|timestamp|flags|sizediff"
     }
     
+    headers = {
+        "User-Agent": "WikimediaLiveLeaderboard/1.0 (https://github.com/shakil-mdshosen/wikimedia-live-leaderboard; shakil@example.com)"
+    }
+    
     try:
-        response = requests.get(API_URL, params=params)
+        response = requests.get(API_URL, params=params, headers=headers)
         response.raise_for_status()
         data = response.json()
         
