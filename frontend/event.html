@@ -6,7 +6,6 @@
     <title>Event Leaderboard - Wikimedia Live Leaderboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/style.css">
-    <link rel="stylesheet" href="/index.css">
 </head>
 <body>
     <div class="background-orbs">
@@ -17,12 +16,12 @@
 
     <div class="container" style="position: relative; z-index: 10;">
         <div style="margin-bottom: 20px;">
-            <a href="/" class="secondary-btn" style="text-decoration: none;">&larr; Back to Events</a>
+            <a href="/" class="btn" style="text-decoration: none; background: rgba(255,255,255,0.1);">&larr; Back to Events</a>
         </div>
         
-        <header class="glass-panel main-header">
+        <header class="glass-panel main-header" style="flex-wrap: wrap; gap: 20px;">
             <div class="logo-area">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/3/32/Dhaka_Wikimedia_Community_logo-vertical-en.svg" alt="Dhaka Wikimedia Community Logo" class="logo">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/3/32/Dhaka_Wikimedia_Community_logo-vertical-en.svg" alt="Logo" class="logo" style="width: 40px; height: 40px;">
                 <div>
                     <h1 id="eventName">Loading Event...</h1>
                     <p class="subtitle" id="eventDesc">Tracking contributions in real-time | UTC+6</p>

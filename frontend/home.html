@@ -4,30 +4,54 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wikimedia Live Leaderboard</title>
-    <link rel="stylesheet" href="/index.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .events-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        .event-card {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: transform 0.3s ease;
+        }
+        .event-card:hover {
+            transform: translateY(-5px);
+        }
+    </style>
 </head>
 <body>
-    <header class="header">
-        <div class="header-container">
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/3/32/Dhaka_Wikimedia_Community_logo-vertical-en.svg" alt="Logo" class="logo">
+    <div class="background-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="container" style="position: relative; z-index: 10;">
+        <header class="glass-panel main-header" style="flex-wrap: wrap; gap: 20px;">
+            <div class="logo-area">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/3/32/Dhaka_Wikimedia_Community_logo-vertical-en.svg" alt="Logo" class="logo" style="width: 40px; height: 40px;">
                 <div>
                     <h1 class="title">Wikimedia Live Leaderboard</h1>
                     <p class="subtitle">Track edit-a-thons in real-time across the Wikimedia ecosystem</p>
                 </div>
             </div>
-            <div id="auth-section">
-                <a href="/oauth/login" class="primary-btn" style="text-decoration: none;">Login with Wikimedia</a>
+            <div id="auth-section" class="admin-panel">
+                <a href="/oauth/login" class="btn" style="text-decoration: none;">Login with Wikimedia</a>
             </div>
-        </div>
-    </header>
+        </header>
 
-    <main class="main-content">
-        <h2 style="margin-bottom: 20px;">Active Events</h2>
-        <div id="eventsList" style="display: grid; gap: 20px;">
-            <!-- Events populated here -->
-        </div>
-    </main>
+        <main class="glass-panel" style="padding: 2rem;">
+            <h2 style="margin-bottom: 20px; font-size: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">Active Events</h2>
+            <div id="eventsList" class="events-grid">
+                <!-- Events populated here -->
+            </div>
+        </main>
+    </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
@@ -37,9 +61,9 @@
                 if (meRes.ok) {
                     const me = await meRes.json();
                     document.getElementById('auth-section').innerHTML = `
-                        <span style="margin-right: 15px; color: var(--text-muted)">Welcome, ${me.username}</span>
-                        <a href="/dashboard" class="primary-btn" style="text-decoration: none; margin-right: 10px;">Dashboard</a>
-                        <button onclick="logout()" class="secondary-btn">Logout</button>
+                        <span style="color: var(--text-muted); display:flex; align-items:center;">Welcome, ${me.username}</span>
+                        <a href="/dashboard" class="btn" style="text-decoration: none; background: rgba(255,255,255,0.1);">Dashboard</a>
+                        <button onclick="logout()" class="btn" style="background: #ef4444;">Logout</button>
                     `;
                 }
             } catch (e) {}
@@ -51,21 +75,22 @@
                 const list = document.getElementById('eventsList');
                 
                 if (events.length === 0) {
-                    list.innerHTML = '<div class="card"><p style="text-align: center; color: var(--text-muted);">No active events right now.</p></div>';
+                    list.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 2rem;">No active events right now.</div>';
                     return;
                 }
                 
                 let html = '';
                 events.forEach(e => {
-                    const start = new Date(e.start_time).toLocaleString();
-                    const end = new Date(e.end_time).toLocaleString();
+                    const start = new Date(e.start_time).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
+                    const end = new Date(e.end_time).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
                     html += `
-                        <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div class="glass-panel event-card">
                             <div>
-                                <h3 style="margin: 0 0 5px 0;"><a href="/event/${e.slug}" style="color: var(--primary); text-decoration: none;">${e.name}</a></h3>
-                                <p style="margin: 0; color: var(--text-muted); font-size: 0.9rem;">${start} — ${end} • By ${e.creator_username}</p>
+                                <h3 style="margin-bottom: 10px;"><a href="/event/${e.slug}" style="color: var(--text-main); text-decoration: none; font-size: 1.2rem;">${e.name}</a></h3>
+                                <p style="color: var(--primary); font-size: 0.9rem; margin-bottom: 15px;">${start} — ${end}</p>
+                                <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px;">By ${e.creator_username}</p>
                             </div>
-                            <a href="/event/${e.slug}" class="secondary-btn" style="text-decoration: none;">View Leaderboard</a>
+                            <a href="/event/${e.slug}" class="btn" style="text-decoration: none; text-align: center; width: 100%;">View Leaderboard</a>
                         </div>
                     `;
                 });
