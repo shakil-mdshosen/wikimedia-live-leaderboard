@@ -134,6 +134,27 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // Event Listeners
+    const refreshBtn = document.getElementById('refreshBtn');
+
+    refreshBtn.addEventListener('click', async () => {
+        refreshBtn.disabled = true;
+        refreshBtn.innerText = 'Refreshing...';
+        
+        try {
+            await fetch('/api/refresh', { method: 'POST' });
+            // Fetch the updated data shortly after
+            setTimeout(fetchLiveStats, 3000);
+        } catch (error) {
+            console.error('Error triggering refresh:', error);
+        }
+        
+        // Prevent spamming
+        setTimeout(() => {
+            refreshBtn.disabled = false;
+            refreshBtn.innerText = 'Refresh Now';
+        }, 15000);
+    });
+
     addEditorBtn.addEventListener('click', handleAddEditor);
     editorInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleAddEditor();

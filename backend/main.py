@@ -62,6 +62,28 @@ def add_editor(editor_data: EditorAdd, background_tasks: BackgroundTasks, db: Se
     
     return {"message": f"Editor {username} added. Fetching initial stats..."}
 
+def refresh_all_users_task():
+    db = database.SessionLocal()
+    try:
+        editors = db.query(models.Editor).all()
+        for editor in editors:
+            try:
+                edits, uploads, bytes_added = poller.fetch_user_stats(editor.username)
+                editor.total_edits = edits
+                editor.file_uploads = uploads
+                editor.bytes_added = bytes_added
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                print(f"Error fetching {editor.username}: {e}")
+    finally:
+        db.close()
+
+@app.post("/api/refresh")
+def force_refresh(background_tasks: BackgroundTasks):
+    background_tasks.add_task(refresh_all_users_task)
+    return {"message": "Background refresh started"}
+
 @app.get("/api/live-stats", response_model=LiveStats)
 def get_live_stats(db: Session = Depends(database.get_db)):
     editors = db.query(models.Editor).order_by(models.Editor.total_edits.desc()).all()
