@@ -259,4 +259,8 @@ def serve_dashboard():
 def serve_event(slug: str):
     return FileResponse(os.path.join(FRONTEND_DIR, "event.html"))
 
+@app.get("/event/{slug}/edit")
+def serve_event_edit(slug: str):
+    return FileResponse(os.path.join(FRONTEND_DIR, "edit.html"))
+
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")

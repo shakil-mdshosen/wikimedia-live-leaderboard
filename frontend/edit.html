@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Event - Wikimedia Live Leaderboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .form-group { margin-bottom: 1rem; text-align: left; }
+        .form-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; color: var(--text-muted); font-size: 0.9rem; }
+        .form-group input { width: 100%; }
+        .edit-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+        @media (min-width: 768px) {
+            .edit-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="background-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="container" style="position: relative; z-index: 10;">
+        <div style="margin-bottom: 20px;">
+            <a href="/dashboard" class="btn" style="text-decoration: none; background: rgba(255,255,255,0.1);">&larr; Back to Dashboard</a>
+            <a id="viewLiveBtn" href="#" class="btn" style="text-decoration: none; background: var(--primary); margin-left: 10px;">View Live Leaderboard</a>
+        </div>
+        
+        <header class="glass-panel main-header" style="margin-bottom: 2rem;">
+            <div class="logo-area">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/3/32/Dhaka_Wikimedia_Community_logo-vertical-en.svg" alt="Logo" class="logo" style="width: 40px; height: 40px;">
+                <div>
+                    <h1 id="eventName">Loading Event...</h1>
+                    <p class="subtitle" id="eventDesc">Admin Settings</p>
+                </div>
+            </div>
+        </header>
+
+        <main class="edit-grid">
+            <div class="glass-panel" style="padding: 2rem;">
+                <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">Edit Event Settings</h3>
+                <form id="editEventForm">
+                    <div class="form-group">
+                        <label>Event Name</label>
+                        <input type="text" id="evName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>URL Slug (Change will break old links!)</label>
+                        <input type="text" id="evSlug" required pattern="[a-zA-Z0-9\-]+">
+                    </div>
+                    <div class="form-group">
+                        <label>Target Wikis (comma separated)</label>
+                        <input type="text" id="evWikis" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Start Time (Your Local Time)</label>
+                        <input type="datetime-local" id="evStart" required>
+                    </div>
+                    <div class="form-group">
+                        <label>End Time (Your Local Time)</label>
+                        <input type="datetime-local" id="evEnd" required>
+                    </div>
+                    <button type="submit" class="btn" style="background: var(--primary); width: 100%; margin-top: 1rem;">Save Changes</button>
+                    <div id="formMessage" style="margin-top: 10px; color: #ef4444; font-size: 0.9rem;"></div>
+                </form>
+            </div>
+
+            <div class="glass-panel" style="padding: 2rem;">
+                <h3 style="margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">Manage Editors</h3>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                    <input type="text" id="editorInput" placeholder="Enter Wikimedia Username..." style="flex-grow: 1;" />
+                    <button id="addEditorBtn" class="btn">Add Editor</button>
+                </div>
+                
+                <div class="table-container">
+                    <table id="leaderboardTable">
+                        <thead>
+                            <tr>
+                                <th>Editor</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="editorsBody">
+                            <tr><td colspan="2" style="text-align:center;">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast glass-panel hidden"></div>
+
+    <script>
+        const slug = window.location.pathname.split('/')[2];
+        let currentUser = null;
+        let eventData = null;
+
+        document.getElementById('viewLiveBtn').href = `/event/${slug}`;
+
+        const toast = document.getElementById('toast');
+        const showToast = (message, isError = false) => {
+            toast.textContent = message;
+            toast.style.borderLeftColor = isError ? '#ef4444' : 'var(--accent-green)';
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 3000);
+        };
+
+        function toLocalDatetimeString(isoString) {
+            const date = new Date(isoString);
+            const tzOffset = date.getTimezoneOffset() * 60000;
+            const localISOTime = (new Date(date.getTime() - tzOffset)).toISOString().slice(0, 16);
+            return localISOTime;
+        }
+
+        async function init() {
+            try {
+                const meRes = await fetch('/api/me');
+                if (meRes.ok) currentUser = await meRes.json();
+            } catch(e) {}
+
+            await fetchData();
+        }
+
+        async function fetchData() {
+            try {
+                const res = await fetch(`/api/events/${slug}/live-stats`);
+                if (!res.ok) throw new Error("Failed to fetch event data");
+                const data = await res.json();
+                
+                eventData = data.event;
+
+                // Security check
+                if (!currentUser || (currentUser.role !== 'superadmin' && currentUser.username !== eventData.creator_username)) {
+                    window.location.href = `/event/${slug}`;
+                    return;
+                }
+
+                // Populate UI
+                document.getElementById('eventName').textContent = `Edit: ${eventData.name}`;
+                document.getElementById('evName').value = eventData.name;
+                document.getElementById('evSlug').value = eventData.slug;
+                document.getElementById('evWikis').value = eventData.target_wikis;
+                document.getElementById('evStart').value = toLocalDatetimeString(eventData.start_time);
+                document.getElementById('evEnd').value = toLocalDatetimeString(eventData.end_time);
+
+                // Render Table
+                const tbody = document.getElementById('editorsBody');
+                tbody.innerHTML = '';
+                if(data.leaderboard.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="2" style="text-align: center;">No editors participating yet.</td></tr>`;
+                    return;
+                }
+
+                data.leaderboard.forEach(entry => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><a href="https://meta.wikimedia.org/wiki/User:${encodeURIComponent(entry.username)}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 600;">${entry.username}</a></td>
+                        <td><button onclick="removeEditor('${entry.username}')" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">Remove</button></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+            } catch (e) {
+                console.error(e);
+                showToast("Failed to load event data", true);
+            }
+        }
+
+        // Submit Edit Form
+        document.getElementById('editEventForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = document.getElementById('formMessage');
+            msg.textContent = '';
+            
+            const startLocal = document.getElementById('evStart').value;
+            const endLocal = document.getElementById('evEnd').value;
+            const newSlug = document.getElementById('evSlug').value.toLowerCase();
+            
+            const payload = {
+                name: document.getElementById('evName').value,
+                slug: newSlug,
+                target_wikis: document.getElementById('evWikis').value,
+                start_time: new Date(startLocal).toISOString(),
+                end_time: new Date(endLocal).toISOString(),
+                description: eventData.description
+            };
+
+            const btn = e.target.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            btn.textContent = "Saving...";
+
+            try {
+                const res = await fetch(`/api/events/${slug}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail);
+                
+                showToast(`Event updated successfully!`);
+                if (newSlug !== slug) {
+                    window.location.href = `/event/${newSlug}/edit`;
+                } else {
+                    await fetchData();
+                }
+            } catch(err) {
+                msg.textContent = err.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Save Changes";
+            }
+        });
+
+        // Add Editor
+        document.getElementById('addEditorBtn').addEventListener('click', async () => {
+            const input = document.getElementById('editorInput');
+            const username = input.value.trim();
+            if (!username) return;
+
+            const btn = document.getElementById('addEditorBtn');
+            btn.disabled = true;
+            btn.textContent = 'Adding...';
+
+            try {
+                const res = await fetch(`/api/events/${slug}/editors`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username})
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail);
+                
+                showToast(`Added ${username}!`);
+                input.value = '';
+                await fetchData();
+            } catch(e) {
+                showToast(e.message, true);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Add Editor';
+            }
+        });
+
+        // Remove Editor
+        window.removeEditor = async (username) => {
+            if(!confirm(`Remove ${username} from this event?`)) return;
+            try {
+                const res = await fetch(`/api/events/${slug}/editors/${username}`, {method: 'DELETE'});
+                if(!res.ok) throw new Error("Failed to remove");
+                showToast(`Removed ${username}`);
+                await fetchData();
+            } catch(e) {
+                showToast(e.message, true);
+            }
+        };
+
+        init();
+    </script>
+</body>
+</html>

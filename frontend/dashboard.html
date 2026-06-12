@@ -47,7 +47,7 @@
 
         <main class="dashboard-grid">
             <div class="glass-panel" style="padding: 2rem;">
-                <h2 style="margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">My Events</h2>
+                <h2 style="margin-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">All Events</h2>
                 <div id="myEventsList" style="display: grid; gap: 1rem;">
                     <!-- User events -->
                 </div>
@@ -144,25 +144,32 @@
                 const res = await fetch('/api/events');
                 const allEvents = await res.json();
                 
-                const myEvents = currentUser.role === 'superadmin' 
-                    ? allEvents 
-                    : allEvents.filter(e => e.creator_username === currentUser.username);
-
                 const list = document.getElementById('myEventsList');
-                if (myEvents.length === 0) {
-                    list.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">You have not created any events yet.</p>';
+                if (allEvents.length === 0) {
+                    list.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">No events available.</p>';
                     return;
                 }
 
                 let html = '';
-                myEvents.forEach(e => {
+                allEvents.forEach(e => {
+                    const canEdit = currentUser.role === 'superadmin' || e.creator_username === currentUser.username;
+                    
                     html += `
                         <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; border: 1px solid var(--glass-border);">
                             <h3 style="margin: 0 0 5px 0;"><a href="/event/${e.slug}" style="color: var(--text-main); text-decoration: none;">${e.name}</a></h3>
-                            <p style="margin: 0 0 15px 0; color: var(--primary); font-size: 0.85rem;">/event/${e.slug}</p>
+                            <p style="margin: 0 0 15px 0; color: var(--primary); font-size: 0.85rem;">/event/${e.slug} <span style="color: var(--text-muted);">(By ${e.creator_username})</span></p>
                             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                <a href="/event/${e.slug}" class="btn" style="text-decoration: none; padding: 4px 12px; font-size: 0.8rem; background: rgba(255,255,255,0.1);">Manage</a>
+                                <a href="/event/${e.slug}" class="btn" style="text-decoration: none; padding: 4px 12px; font-size: 0.8rem; background: rgba(255,255,255,0.1);">View Leaderboard</a>
+                    `;
+                    
+                    if (canEdit) {
+                        html += `
+                                <a href="/event/${e.slug}/edit" class="btn" style="text-decoration: none; padding: 4px 12px; font-size: 0.8rem; background: var(--accent-green);">Edit / Manage</a>
                                 <button onclick="deleteEvent('${e.slug}')" class="btn" style="background: #ef4444; padding: 4px 12px; font-size: 0.8rem;">Delete</button>
+                        `;
+                    }
+                    
+                    html += `
                             </div>
                         </div>
                     `;
