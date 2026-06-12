@@ -47,40 +47,41 @@ def run_listener():
                             continue # Outside the event window
                     
                     rev_id = change.get('revision', {}).get('new')
-                    log_id = change.get('log_id')
-                    log_type = change.get('log_type')
-                    
-                    is_upload = False
-                    diff = 0
-                    is_new = False
-                    
-                    if log_type == 'upload' and log_id:
-                        edit_id_str = f"log_{log_id}"
-                        is_upload = True
-                        is_new = True
-                    elif rev_id:
-                        edit_id_str = f"rev_{rev_id}"
-                        is_upload = False
-                        is_new = change.get('type') == 'new'
-                        try:
-                            diff = change.get('length', {}).get('new', 0) - change.get('length', {}).get('old', 0)
-                        except:
-                            diff = 0
-                    else:
-                        continue # Unidentifiable event
+                    if not rev_id:
+                        continue # Event Streams Action API edits and uploads all have a revision ID
                         
-                    # Prevent duplicate
-                    if db.query(models.EditLog).filter(models.EditLog.edit_id == edit_id_str).first():
+                    log_type = change.get('log_type')
+                    is_upload_event = (log_type == 'upload')
+                    
+                    edit_id_str = f"rev_{rev_id}"
+                    
+                    existing = db.query(models.EditLog).filter(models.EditLog.edit_id == edit_id_str).first()
+                    
+                    if existing:
+                        # If we previously captured the 'edit' event but now the 'log' upload event arrives
+                        if is_upload_event and not existing.is_upload:
+                            existing.is_upload = True
+                            stats = db.query(models.GlobalStats).first()
+                            if stats:
+                                stats.total_edits -= 1
+                                stats.total_uploads += 1
+                            db.commit()
                         continue
-
+                        
+                    try:
+                        diff = max(0, change.get('length', {}).get('new', 0) - change.get('length', {}).get('old', 0))
+                    except:
+                        diff = 0
+                        
                     namespace = change.get('namespace')
+                    is_new = change.get('type') == 'new'
                         
                     log = models.EditLog(
                         edit_id=edit_id_str,
                         username=username,
                         namespace=namespace,
                         is_new_page=is_new,
-                        is_upload=is_upload,
+                        is_upload=is_upload_event,
                         timestamp=datetime.utcfromtimestamp(ts) if ts else datetime.utcnow(),
                         bytes_changed=diff
                     )
@@ -92,7 +93,7 @@ def run_listener():
                         stats = models.GlobalStats(total_editors=0, total_edits=0, total_uploads=0, bytes_added=0)
                         db.add(stats)
                         
-                    if not is_upload:
+                    if not is_upload_event:
                         stats.total_edits += 1
                     else:
                         stats.total_uploads += 1

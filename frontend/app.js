@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <td><a href="https://commons.wikimedia.org/wiki/User:${encodeURIComponent(entry.username)}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 600;">${entry.username}</a></td>
                 <td>${formatNum(entry.total_edits)}</td>
                 <td>${formatNum(entry.file_uploads)}</td>
-                <td style="color: ${entry.bytes_changed >= 0 ? 'var(--accent-green)' : '#ef4444'}">${formatBytes(entry.bytes_changed)}</td>
+                <td style="color: var(--accent-green)">${formatBytes(entry.bytes_changed)}</td>
             `;
             leaderboardBody.appendChild(row);
         });
