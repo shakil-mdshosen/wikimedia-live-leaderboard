@@ -114,8 +114,14 @@ def poll_all_active_events():
         events = db.query(models.Event).all()
         
         for event in events:
-            # You can add logic here to only poll events that are currently active
-            # For now, we poll all events (or you could filter by datetime)
+            # Skip if the event has been over for more than 6 minutes
+            # We allow a 6-minute grace period to do one final poll after the event ends
+            from datetime import timedelta
+            end_utc = event.end_time.replace(tzinfo=timezone.utc) if event.end_time.tzinfo is None else event.end_time.astimezone(timezone.utc)
+            if now_utc > end_utc + timedelta(minutes=6):
+                print(f"Skipping ended event: {event.name} ({event.slug})")
+                continue
+                
             print(f"Polling event: {event.name} ({event.slug})")
             
             for editor in event.editors:
