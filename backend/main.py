@@ -27,24 +27,8 @@ class LiveStats(BaseModel):
     global_stats: dict
     leaderboard: list[LeaderboardEntry]
 
-def initial_fetch_task(username: str):
-    """Fetches stats immediately upon registration without blocking the API response."""
-    db = database.SessionLocal()
-    try:
-        editor = db.query(models.Editor).filter(models.Editor.username == username).first()
-        if editor:
-            edits, uploads, bytes_added = poller.fetch_user_stats(username)
-            editor.total_edits = edits
-            editor.file_uploads = uploads
-            editor.bytes_added = bytes_added
-            db.commit()
-    except Exception as e:
-        print(f"Initial fetch error for {username}: {e}")
-    finally:
-        db.close()
-
 @app.post("/api/editors")
-def add_editor(editor_data: EditorAdd, background_tasks: BackgroundTasks, db: Session = Depends(database.get_db)):
+def add_editor(editor_data: EditorAdd, db: Session = Depends(database.get_db)):
     username = editor_data.username.strip()
     if not username:
         raise HTTPException(status_code=400, detail="Username cannot be empty")
@@ -57,10 +41,18 @@ def add_editor(editor_data: EditorAdd, background_tasks: BackgroundTasks, db: Se
     db.add(new_editor)
     db.commit()
     
-    # Trigger an immediate one-off fetch so they don't have to wait 5 minutes to appear
-    background_tasks.add_task(initial_fetch_task, username)
+    # Fetch stats synchronously so the UI immediately shows the right numbers
+    try:
+        edits, uploads, bytes_added = poller.fetch_user_stats(username)
+        new_editor.total_edits = edits
+        new_editor.file_uploads = uploads
+        new_editor.bytes_added = bytes_added
+        db.commit()
+    except Exception as e:
+        print(f"Initial fetch error for {username}: {e}")
+        db.rollback()
     
-    return {"message": f"Editor {username} added. Fetching initial stats..."}
+    return {"message": f"Editor {username} added."}
 
 def refresh_all_users_task():
     db = database.SessionLocal()

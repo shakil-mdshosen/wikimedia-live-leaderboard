@@ -142,8 +142,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         try {
             await fetch('/api/refresh', { method: 'POST' });
-            // Fetch the updated data shortly after
-            setTimeout(fetchLiveStats, 3000);
+            
+            // Aggressively poll to catch the background task completing
+            let pollCount = 0;
+            const fastPoll = setInterval(() => {
+                fetchLiveStats();
+                pollCount++;
+                if(pollCount >= 8) { // Poll every 2.5s for 20 seconds
+                    clearInterval(fastPoll);
+                }
+            }, 2500);
         } catch (error) {
             console.error('Error triggering refresh:', error);
         }
