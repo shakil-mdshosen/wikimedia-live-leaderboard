@@ -1,5 +1,5 @@
 ---
 - name: stream-listener
-  command: PYTHONPATH="." python3 worker/poller.py
+  command: python3 worker/poller.py
   image: python3.11
   continuous: true

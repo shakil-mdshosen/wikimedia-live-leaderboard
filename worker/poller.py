@@ -1,6 +1,12 @@
 import time
 import requests
+import sys
+import os
 from datetime import datetime
+
+# Bulletproof path resolution so it can import backend regardless of where it's run from
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal
 from backend import models
