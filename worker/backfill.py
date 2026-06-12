@@ -73,7 +73,7 @@ def backfill_user(username: str):
         if edits_added > 0:
             stats = db.query(models.GlobalStats).first()
             if not stats:
-                stats = models.GlobalStats()
+                stats = models.GlobalStats(total_editors=0, total_edits=0, total_uploads=0, bytes_added=0)
                 db.add(stats)
             stats.total_edits += edits_added
             stats.total_uploads += uploads_added

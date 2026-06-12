@@ -45,7 +45,7 @@ def add_editor(editor_data: EditorAdd, background_tasks: BackgroundTasks, db: Se
     # Update global editors count
     stats = db.query(models.GlobalStats).first()
     if not stats:
-        stats = models.GlobalStats()
+        stats = models.GlobalStats(total_editors=0, total_edits=0, total_uploads=0, bytes_added=0)
         db.add(stats)
     stats.total_editors += 1
     db.commit()
