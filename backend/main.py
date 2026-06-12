@@ -119,7 +119,16 @@ def update_event(slug: str, event_data: EventCreate, current_user: models.User =
     event.end_time = event_data.end_time
     event.target_wikis = event_data.target_wikis
     db.commit()
-    return {**event.__dict__, "creator_username": event.creator.username if event.creator else "Unknown"}
+    db.refresh(event)
+    return {
+        "slug": event.slug,
+        "name": event.name,
+        "description": event.description or "",
+        "start_time": event.start_time,
+        "end_time": event.end_time,
+        "target_wikis": event.target_wikis,
+        "creator_username": event.creator.username if event.creator else "Unknown"
+    }
 
 @app.delete("/api/events/{slug}")
 def delete_event(slug: str, current_user: models.User = Depends(get_current_user), db: Session = Depends(database.get_db)):
