@@ -88,10 +88,15 @@
                 events.forEach(e => {
                     const start = new Date(e.start_time).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
                     const end = new Date(e.end_time).toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'});
+                    
+                    const endDateUtcTimestamp = new Date(e.end_time + 'Z').getTime() - (6 * 60 * 60 * 1000);
+                    const isActive = Date.now() <= endDateUtcTimestamp;
+                    const activeDot = isActive ? `<span class="dot" title="Active Event" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: #ef4444; box-shadow: 0 0 8px #ef4444; margin-left: 10px; vertical-align: middle;"></span>` : '';
+
                     html += `
                         <div class="glass-panel event-card">
                             <div>
-                                <h3 style="margin-bottom: 10px;"><a href="/event/${e.slug}" style="color: var(--text-main); text-decoration: none; font-size: 1.2rem;">${e.name}</a></h3>
+                                <h3 style="margin-bottom: 10px; display: flex; align-items: center;"><a href="/event/${e.slug}" style="color: var(--text-main); text-decoration: none; font-size: 1.2rem;">${e.name}</a>${activeDot}</h3>
                                 <p style="color: var(--primary); font-size: 0.9rem; margin-bottom: 15px;">${start} — ${end}</p>
                                 <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px;">By ${e.creator_username}</p>
                             </div>

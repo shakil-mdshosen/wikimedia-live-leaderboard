@@ -159,9 +159,13 @@
                 allEvents.forEach(e => {
                     const canEdit = currentUser.role === 'superadmin' || e.creator_username === currentUser.username;
                     
+                    const endDateUtcTimestamp = new Date(e.end_time + 'Z').getTime() - (6 * 60 * 60 * 1000);
+                    const isActive = Date.now() <= endDateUtcTimestamp;
+                    const activeDot = isActive ? `<span class="dot" title="Active Event" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: #ef4444; box-shadow: 0 0 8px #ef4444; margin-left: 8px; vertical-align: middle;"></span>` : '';
+                    
                     html += `
                         <div style="background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px; border: 1px solid var(--glass-border);">
-                            <h3 style="margin: 0 0 5px 0;"><a href="/event/${e.slug}" style="color: var(--text-main); text-decoration: none;">${e.name}</a></h3>
+                            <h3 style="margin: 0 0 5px 0; display: flex; align-items: center;"><a href="/event/${e.slug}" style="color: var(--text-main); text-decoration: none;">${e.name}</a>${activeDot}</h3>
                             <p style="margin: 0 0 15px 0; color: var(--primary); font-size: 0.85rem;">/event/${e.slug} <span style="color: var(--text-muted);">(By ${e.creator_username})</span></p>
                             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                                 <a href="/event/${e.slug}" class="btn" style="text-decoration: none; padding: 4px 12px; font-size: 0.8rem; background: rgba(255,255,255,0.1);">View Leaderboard</a>
