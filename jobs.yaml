@@ -1,0 +1,5 @@
+---
+- name: stream-listener
+  command: python3 worker/stream_listener.py
+  image: python3.11
+  continuous: true

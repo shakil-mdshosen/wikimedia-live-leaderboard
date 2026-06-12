@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikimedia Live Leaderboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="background-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="container">
+        <header class="glass-panel main-header">
+            <div class="logo-area">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Commons-logo.svg/1024px-Commons-logo.svg.png" alt="Commons Logo" class="logo">
+                <div>
+                    <h1>Live Edit-a-thon Leaderboard</h1>
+                    <p class="subtitle">Tracking contributions in real-time | UTC+6</p>
+                </div>
+            </div>
+            
+            <div class="admin-panel">
+                <input type="text" id="editorInput" placeholder="Enter Wikimedia Username..." />
+                <button id="addEditorBtn" class="btn">Register Editor</button>
+            </div>
+        </header>
+
+        <section class="stats-grid">
+            <div class="glass-panel stat-card">
+                <h3>Total Edits</h3>
+                <div class="stat-value" id="stat-edits">0</div>
+            </div>
+            <div class="glass-panel stat-card">
+                <h3>Editors</h3>
+                <div class="stat-value" id="stat-editors">0</div>
+            </div>
+            <div class="glass-panel stat-card">
+                <h3>File Uploads</h3>
+                <div class="stat-value" id="stat-uploads">0</div>
+            </div>
+            <div class="glass-panel stat-card">
+                <h3>Bytes Added</h3>
+                <div class="stat-value" id="stat-bytes">0</div>
+            </div>
+        </section>
+
+        <main class="glass-panel leaderboard-section">
+            <div class="leaderboard-header">
+                <h2>Leaderboard</h2>
+                <div class="live-indicator">
+                    <span class="dot"></span> Live Updates
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table id="leaderboardTable">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Editor</th>
+                            <th>Total Edits</th>
+                            <th>File Uploads (NS6)</th>
+                            <th>Bytes Changed</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody">
+                        <!-- Rows injected by app.js -->
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast glass-panel hidden"></div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
