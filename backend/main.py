@@ -72,9 +72,9 @@ def refresh_all_users_task():
         db.close()
 
 @app.post("/api/refresh")
-def force_refresh(background_tasks: BackgroundTasks):
-    background_tasks.add_task(refresh_all_users_task)
-    return {"message": "Background refresh started"}
+def force_refresh():
+    refresh_all_users_task()
+    return {"message": "Refresh complete"}
 
 @app.get("/api/live-stats", response_model=LiveStats)
 def get_live_stats(db: Session = Depends(database.get_db)):

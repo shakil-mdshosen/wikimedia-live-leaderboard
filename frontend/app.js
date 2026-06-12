@@ -143,15 +143,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await fetch('/api/refresh', { method: 'POST' });
             
-            // Aggressively poll to catch the background task completing
-            let pollCount = 0;
-            const fastPoll = setInterval(() => {
-                fetchLiveStats();
-                pollCount++;
-                if(pollCount >= 8) { // Poll every 2.5s for 20 seconds
-                    clearInterval(fastPoll);
-                }
-            }, 2500);
+            // The request is synchronous, so when it returns, the DB is fully updated!
+            await fetchLiveStats();
         } catch (error) {
             console.error('Error triggering refresh:', error);
         }
