@@ -12,10 +12,11 @@ class EditLog(Base):
     __tablename__ = "edits_log"
     
     id = Column(Integer, primary_key=True, index=True)
-    edit_id = Column(Integer, unique=True, index=True)
+    edit_id = Column(String, unique=True, index=True)
     username = Column(String, index=True)
     namespace = Column(Integer)
     is_new_page = Column(Boolean)
+    is_upload = Column(Boolean, default=False)
     timestamp = Column(DateTime)
     bytes_changed = Column(Integer)
 

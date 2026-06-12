@@ -44,10 +44,11 @@ def backfill_user(username: str):
         uploads_added = 0
         bytes_added = 0
         
+        # 1. Process Edits
         for c in contribs:
-            edit_id = c.get("revid")
+            edit_id_str = f"rev_{c.get('revid')}"
             # Check if edit already exists to prevent duplicates
-            if db.query(models.EditLog).filter(models.EditLog.edit_id == edit_id).first():
+            if db.query(models.EditLog).filter(models.EditLog.edit_id == edit_id_str).first():
                 continue
                 
             ts = datetime.strptime(c.get("timestamp"), "%Y-%m-%dT%H:%M:%SZ")
@@ -56,21 +57,56 @@ def backfill_user(username: str):
             is_new = "new" in c
             
             log = models.EditLog(
-                edit_id=edit_id,
+                edit_id=edit_id_str,
                 username=username,
                 namespace=ns,
                 is_new_page=is_new,
+                is_upload=False,
                 timestamp=ts,
                 bytes_changed=diff
             )
             db.add(log)
             edits_added += 1
-            if ns == 6:
-                uploads_added += 1
             bytes_added += diff
+
+        # 2. Process Uploads via logevents
+        log_params = {
+            "action": "query",
+            "format": "json",
+            "list": "logevents",
+            "leuser": username,
+            "lestart": end_str,
+            "leend": start_str,
+            "ledir": "older",
+            "lelimit": "max",
+            "letype": "upload"
+        }
+        response_logs = requests.get(API_URL, params=log_params, headers=headers)
+        response_logs.raise_for_status()
+        upload_logs = response_logs.json().get("query", {}).get("logevents", [])
+        
+        for l in upload_logs:
+            log_id_str = f"log_{l.get('logid')}"
+            if db.query(models.EditLog).filter(models.EditLog.edit_id == log_id_str).first():
+                continue
+                
+            ts = datetime.strptime(l.get("timestamp"), "%Y-%m-%dT%H:%M:%SZ")
+            ns = l.get("ns")
+            
+            log = models.EditLog(
+                edit_id=log_id_str,
+                username=username,
+                namespace=ns,
+                is_new_page=True,
+                is_upload=True,
+                timestamp=ts,
+                bytes_changed=0 # Let the revision handle the bytes
+            )
+            db.add(log)
+            uploads_added += 1
             
         # Update global stats
-        if edits_added > 0:
+        if edits_added > 0 or uploads_added > 0:
             stats = db.query(models.GlobalStats).first()
             if not stats:
                 stats = models.GlobalStats(total_editors=0, total_edits=0, total_uploads=0, bytes_added=0)

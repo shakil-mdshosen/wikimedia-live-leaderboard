@@ -71,10 +71,10 @@ def get_live_stats(db: Session = Depends(database.get_db)):
     # Count total edits, count file uploads (namespace == 6 OR is_new_page == True AND log_type == upload) -> simplified to namespace=6 for uploads
     leaderboard_query = db.query(
         models.EditLog.username,
-        func.count(models.EditLog.id).label('total_edits'),
-        func.sum(func.cast(models.EditLog.namespace == 6, models.Integer)).label('file_uploads'), # Simple NS6 count
+        func.sum(func.cast(models.EditLog.is_upload == False, models.Integer)).label('total_edits'),
+        func.sum(func.cast(models.EditLog.is_upload == True, models.Integer)).label('file_uploads'),
         func.sum(models.EditLog.bytes_changed).label('bytes_changed')
-    ).group_by(models.EditLog.username).order_by(func.count(models.EditLog.id).desc()).all()
+    ).group_by(models.EditLog.username).order_by(func.sum(func.cast(models.EditLog.is_upload == False, models.Integer)).desc()).all()
     
     leaderboard = []
     rank = 1
