@@ -21,9 +21,11 @@ def fetch_user_stats(username: str, event: models.Event) -> tuple[int, int, int]
     within the given event's time boundary and target wikis.
     """
     
-    # Ensure times are UTC
-    start_utc = event.start_time.replace(tzinfo=timezone.utc) if event.start_time.tzinfo is None else event.start_time.astimezone(timezone.utc)
-    end_utc = event.end_time.replace(tzinfo=timezone.utc) if event.end_time.tzinfo is None else event.end_time.astimezone(timezone.utc)
+    # Event times are stored as Bangladesh Local Time (UTC+6) in the database.
+    # We must convert them to UTC for the Wikimedia API (UTC = BD - 6 hours)
+    from datetime import timedelta
+    start_utc = event.start_time - timedelta(hours=6)
+    end_utc = event.end_time - timedelta(hours=6)
     
     start_str = start_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
     end_str = end_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -116,7 +118,7 @@ def poll_all_active_events():
             # Skip if the event has been over for more than 6 minutes
             # We allow a 6-minute grace period to do one final poll after the event ends
             from datetime import timedelta
-            end_utc = event.end_time.replace(tzinfo=timezone.utc) if event.end_time.tzinfo is None else event.end_time.astimezone(timezone.utc)
+            end_utc = event.end_time - timedelta(hours=6)
             if now_utc > end_utc + timedelta(minutes=6):
                 print(f"Skipping ended event: {event.name} ({event.slug})")
                 continue

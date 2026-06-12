@@ -118,12 +118,6 @@
             }, 3000);
         };
 
-        function toUTC6DatetimeString(isoString) {
-            const date = new Date(isoString + 'Z');
-            date.setUTCHours(date.getUTCHours() + 6);
-            return date.toISOString().slice(0, 16);
-        }
-
         async function init() {
             try {
                 const meRes = await fetch('/api/me');
@@ -147,13 +141,13 @@
                     return;
                 }
 
-                // Populate UI
+                // Populate UI directly with the raw BD time from the DB
                 document.getElementById('eventName').textContent = `Edit: ${eventData.name}`;
                 document.getElementById('evName').value = eventData.name;
                 document.getElementById('evSlug').value = eventData.slug;
                 document.getElementById('evWikis').value = eventData.target_wikis;
-                document.getElementById('evStart').value = toUTC6DatetimeString(eventData.start_time);
-                document.getElementById('evEnd').value = toUTC6DatetimeString(eventData.end_time);
+                document.getElementById('evStart').value = eventData.start_time.slice(0, 16);
+                document.getElementById('evEnd').value = eventData.end_time.slice(0, 16);
 
                 // Render Table
                 const tbody = document.getElementById('editorsBody');
@@ -192,8 +186,8 @@
                 name: document.getElementById('evName').value,
                 slug: newSlug,
                 target_wikis: document.getElementById('evWikis').value,
-                start_time: new Date(startLocal + '+06:00').toISOString(),
-                end_time: new Date(endLocal + '+06:00').toISOString(),
+                start_time: startLocal,
+                end_time: endLocal,
                 description: eventData.description
             };
 

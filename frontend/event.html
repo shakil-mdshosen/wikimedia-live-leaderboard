@@ -137,10 +137,13 @@
                 
                 eventData = data.event;
 
-                const now = new Date();
-                const endDate = new Date(eventData.end_time + 'Z'); // ensure parsing as UTC
+                const now = Date.now();
+                // eventData.end_time is naive Bangladesh Local Time (e.g. "2026-06-12T23:59:00")
+                // By appending 'Z', we force it to represent that exact hour in UTC. 
+                // Then we subtract 6 hours to get the TRUE UTC timestamp.
+                const endDateUtcTimestamp = new Date(eventData.end_time + 'Z').getTime() - (6 * 60 * 60 * 1000);
 
-                if (now > endDate) {
+                if (now > endDateUtcTimestamp) {
                     const statusText = document.querySelector('.live-indicator div');
                     if (statusText) {
                         statusText.innerHTML = `<span class="dot" style="background-color: #ef4444; box-shadow: 0 0 5px #ef4444;"></span> Event has ended`;
