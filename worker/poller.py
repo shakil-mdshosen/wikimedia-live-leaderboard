@@ -79,7 +79,6 @@ def fetch_user_stats(username: str, event: models.Event) -> tuple[int, int, int]
             "list": "logevents",
             "leuser": username,
             "letype": "upload",
-            "leaction": "upload/upload",
             "lestart": end_str,
             "leend": start_str,
             "ledir": "older",
