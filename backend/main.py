@@ -7,13 +7,12 @@ from pydantic import BaseModel
 import os
 
 from backend import models, database
-from worker import backfill
+from worker import poller
 
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI(title="Wikimedia Live Leaderboard")
 
-# Pydantic models for request/response
 class EditorAdd(BaseModel):
     username: str
 
@@ -27,6 +26,22 @@ class LeaderboardEntry(BaseModel):
 class LiveStats(BaseModel):
     global_stats: dict
     leaderboard: list[LeaderboardEntry]
+
+def initial_fetch_task(username: str):
+    """Fetches stats immediately upon registration without blocking the API response."""
+    db = database.SessionLocal()
+    try:
+        editor = db.query(models.Editor).filter(models.Editor.username == username).first()
+        if editor:
+            edits, uploads, bytes_added = poller.fetch_user_stats(username)
+            editor.total_edits = edits
+            editor.file_uploads = uploads
+            editor.bytes_added = bytes_added
+            db.commit()
+    except Exception as e:
+        print(f"Initial fetch error for {username}: {e}")
+    finally:
+        db.close()
 
 @app.post("/api/editors")
 def add_editor(editor_data: EditorAdd, background_tasks: BackgroundTasks, db: Session = Depends(database.get_db)):
@@ -42,51 +57,36 @@ def add_editor(editor_data: EditorAdd, background_tasks: BackgroundTasks, db: Se
     db.add(new_editor)
     db.commit()
     
-    # Update global editors count
-    stats = db.query(models.GlobalStats).first()
-    if not stats:
-        stats = models.GlobalStats(total_editors=0, total_edits=0, total_uploads=0, bytes_added=0)
-        db.add(stats)
-    stats.total_editors += 1
-    db.commit()
+    # Trigger an immediate one-off fetch so they don't have to wait 5 minutes to appear
+    background_tasks.add_task(initial_fetch_task, username)
     
-    # Trigger background backfill
-    background_tasks.add_task(backfill.backfill_user, username)
-    
-    return {"message": f"Editor {username} added and backfill started."}
+    return {"message": f"Editor {username} added. Fetching initial stats..."}
 
 @app.get("/api/live-stats", response_model=LiveStats)
 def get_live_stats(db: Session = Depends(database.get_db)):
-    # 1. Get global stats
-    stats = db.query(models.GlobalStats).first()
+    editors = db.query(models.Editor).order_by(models.Editor.total_edits.desc()).all()
+    
+    total_editors = len(editors)
+    total_edits = sum(e.total_edits for e in editors)
+    total_uploads = sum(e.file_uploads for e in editors)
+    bytes_added = sum(e.bytes_added for e in editors)
+    
     global_stats_dict = {
-        "total_edits": stats.total_edits if stats else 0,
-        "total_editors": stats.total_editors if stats else 0,
-        "total_uploads": stats.total_uploads if stats else 0,
-        "bytes_added": stats.bytes_added if stats else 0,
+        "total_edits": total_edits,
+        "total_editors": total_editors,
+        "total_uploads": total_uploads,
+        "bytes_added": bytes_added,
     }
     
-    # 2. Compute Leaderboard
-    # Group by username
-    # Count total edits, count file uploads (namespace == 6 OR is_new_page == True AND log_type == upload) -> simplified to namespace=6 for uploads
-    leaderboard_query = db.query(
-        models.EditLog.username,
-        func.sum(func.cast(models.EditLog.is_upload == False, models.Integer)).label('total_edits'),
-        func.sum(func.cast(models.EditLog.is_upload == True, models.Integer)).label('file_uploads'),
-        func.sum(models.EditLog.bytes_changed).label('bytes_changed')
-    ).group_by(models.EditLog.username).order_by(func.sum(func.cast(models.EditLog.is_upload == False, models.Integer)).desc()).all()
-    
     leaderboard = []
-    rank = 1
-    for row in leaderboard_query:
+    for rank, e in enumerate(editors, 1):
         leaderboard.append({
             "rank": rank,
-            "username": row.username,
-            "total_edits": row.total_edits,
-            "file_uploads": row.file_uploads or 0,
-            "bytes_changed": row.bytes_changed or 0
+            "username": e.username,
+            "total_edits": e.total_edits,
+            "file_uploads": e.file_uploads,
+            "bytes_changed": e.bytes_added
         })
-        rank += 1
         
     return {"global_stats": global_stats_dict, "leaderboard": leaderboard}
 

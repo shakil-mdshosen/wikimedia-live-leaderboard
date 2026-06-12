@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const POLL_INTERVAL = 5000; // 5 seconds
+    const POLL_INTERVAL = 30000; // 30 seconds
     
     // DOM Elements
     const statEdits = document.getElementById('stat-edits');
