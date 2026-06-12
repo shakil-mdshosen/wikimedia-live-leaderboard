@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wikimedia Live Leaderboard</title>
+    <link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-container">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/3/32/Dhaka_Wikimedia_Community_logo-vertical-en.svg" alt="Logo" class="logo">
+                <div>
+                    <h1 class="title">Wikimedia Live Leaderboard</h1>
+                    <p class="subtitle">Track edit-a-thons in real-time across the Wikimedia ecosystem</p>
+                </div>
+            </div>
+            <div id="auth-section">
+                <a href="/oauth/login" class="primary-btn" style="text-decoration: none;">Login with Wikimedia</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <h2 style="margin-bottom: 20px;">Active Events</h2>
+        <div id="eventsList" style="display: grid; gap: 20px;">
+            <!-- Events populated here -->
+        </div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check auth
+            try {
+                const meRes = await fetch('/api/me');
+                if (meRes.ok) {
+                    const me = await meRes.json();
+                    document.getElementById('auth-section').innerHTML = `
+                        <span style="margin-right: 15px; color: var(--text-muted)">Welcome, ${me.username}</span>
+                        <a href="/dashboard" class="primary-btn" style="text-decoration: none; margin-right: 10px;">Dashboard</a>
+                        <button onclick="logout()" class="secondary-btn">Logout</button>
+                    `;
+                }
+            } catch (e) {}
+
+            // Load events
+            try {
+                const res = await fetch('/api/events');
+                const events = await res.json();
+                const list = document.getElementById('eventsList');
+                
+                if (events.length === 0) {
+                    list.innerHTML = '<div class="card"><p style="text-align: center; color: var(--text-muted);">No active events right now.</p></div>';
+                    return;
+                }
+                
+                let html = '';
+                events.forEach(e => {
+                    const start = new Date(e.start_time).toLocaleString();
+                    const end = new Date(e.end_time).toLocaleString();
+                    html += `
+                        <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h3 style="margin: 0 0 5px 0;"><a href="/event/${e.slug}" style="color: var(--primary); text-decoration: none;">${e.name}</a></h3>
+                                <p style="margin: 0; color: var(--text-muted); font-size: 0.9rem;">${start} — ${end} • By ${e.creator_username}</p>
+                            </div>
+                            <a href="/event/${e.slug}" class="secondary-btn" style="text-decoration: none;">View Leaderboard</a>
+                        </div>
+                    `;
+                });
+                list.innerHTML = html;
+            } catch(e) {
+                console.error(e);
+            }
+        });
+
+        async function logout() {
+            await fetch('/oauth/logout', {method: 'POST'});
+            window.location.reload();
+        }
+    </script>
+</body>
+</html>

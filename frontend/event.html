@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Leaderboard - Wikimedia Live Leaderboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div class="background-orbs">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <div class="container" style="position: relative; z-index: 10;">
+        <div style="margin-bottom: 20px;">
+            <a href="/" class="secondary-btn" style="text-decoration: none;">&larr; Back to Events</a>
+        </div>
+        
+        <header class="glass-panel main-header">
+            <div class="logo-area">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/3/32/Dhaka_Wikimedia_Community_logo-vertical-en.svg" alt="Dhaka Wikimedia Community Logo" class="logo">
+                <div>
+                    <h1 id="eventName">Loading Event...</h1>
+                    <p class="subtitle" id="eventDesc">Tracking contributions in real-time | UTC+6</p>
+                </div>
+            </div>
+            
+            <div class="admin-panel hidden" id="adminPanel">
+                <input type="text" id="editorInput" placeholder="Enter Wikimedia Username..." />
+                <button id="addEditorBtn" class="btn">Add Editor</button>
+            </div>
+        </header>
+
+        <section class="stats-grid">
+            <div class="glass-panel stat-card">
+                <h3>Total Edits</h3>
+                <div class="stat-value" id="stat-edits">0</div>
+            </div>
+            <div class="glass-panel stat-card">
+                <h3>Editors</h3>
+                <div class="stat-value" id="stat-editors">0</div>
+            </div>
+            <div class="glass-panel stat-card">
+                <h3>File Uploads</h3>
+                <div class="stat-value" id="stat-uploads">0</div>
+            </div>
+            <div class="glass-panel stat-card">
+                <h3>Bytes Added</h3>
+                <div class="stat-value" id="stat-bytes">0</div>
+            </div>
+        </section>
+
+        <main class="glass-panel leaderboard-section">
+            <div class="leaderboard-header">
+                <h2>Leaderboard</h2>
+                <div class="live-indicator" style="display: flex; align-items: center; gap: 10px;">
+                    <div><span class="dot"></span> Updates every 5 minutes</div>
+                    <button id="refreshBtn" class="primary-btn" style="padding: 4px 12px; font-size: 0.8rem; min-width: 100px;">Refresh Now</button>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table id="leaderboardTable">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>Editor</th>
+                            <th>Total Edits</th>
+                            <th>File Uploads</th>
+                            <th>Bytes Added</th>
+                            <th class="admin-col hidden">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody">
+                        <tr><td colspan="6" style="text-align:center;">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast glass-panel hidden"></div>
+
+    <script>
+        const slug = window.location.pathname.split('/').pop();
+        let currentUser = null;
+        let eventData = null;
+        let isAdmin = false;
+        
+        const POLL_INTERVAL = 30000;
+        
+        // Formatter
+        const formatNum = (num) => new Intl.NumberFormat().format(num);
+        const formatBytes = (bytes) => {
+            if (bytes === 0) return '0 B';
+            const sign = bytes < 0 ? '-' : '+';
+            bytes = Math.abs(bytes);
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${sign} ${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+        };
+
+        const toast = document.getElementById('toast');
+        const showToast = (message, isError = false) => {
+            toast.textContent = message;
+            toast.style.borderLeftColor = isError ? '#ef4444' : 'var(--accent-green)';
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.classList.add('hidden'), 300);
+            }, 3000);
+        };
+
+        async function init() {
+            // Fetch current user
+            try {
+                const meRes = await fetch('/api/me');
+                if (meRes.ok) {
+                    currentUser = await meRes.json();
+                }
+            } catch(e) {}
+
+            await fetchLiveStats();
+            setInterval(fetchLiveStats, POLL_INTERVAL);
+        }
+
+        async function fetchLiveStats() {
+            try {
+                const res = await fetch(`/api/events/${slug}/live-stats`);
+                if (!res.ok) throw new Error("Failed to fetch event data");
+                const data = await res.json();
+                
+                eventData = data.event;
+                
+                // Determine admin rights
+                if (currentUser && (currentUser.role === 'superadmin' || currentUser.username === eventData.creator_username)) {
+                    isAdmin = true;
+                    document.getElementById('adminPanel').classList.remove('hidden');
+                    document.querySelector('.admin-col').classList.remove('hidden');
+                }
+
+                // Update UI Headers
+                document.getElementById('eventName').textContent = eventData.name;
+                document.getElementById('eventDesc').textContent = `${eventData.description} | Target: ${eventData.target_wikis} | By: ${eventData.creator_username}`;
+
+                // Update Stats
+                document.getElementById('stat-edits').textContent = formatNum(data.global_stats.total_edits);
+                document.getElementById('stat-editors').textContent = formatNum(data.global_stats.total_editors);
+                document.getElementById('stat-uploads').textContent = formatNum(data.global_stats.total_uploads);
+                document.getElementById('stat-bytes').textContent = formatBytes(data.global_stats.bytes_added);
+
+                // Render Table
+                const tbody = document.getElementById('leaderboardBody');
+                tbody.innerHTML = '';
+                if(data.leaderboard.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="${isAdmin ? 6 : 5}" style="text-align: center;">No editors participating yet.</td></tr>`;
+                    return;
+                }
+
+                data.leaderboard.forEach(entry => {
+                    const row = document.createElement('tr');
+                    if(entry.rank <= 3) row.classList.add(`rank-${entry.rank}`);
+                    
+                    let rowHtml = `
+                        <td>#${entry.rank}</td>
+                        <td><a href="https://meta.wikimedia.org/wiki/User:${encodeURIComponent(entry.username)}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 600;">${entry.username}</a></td>
+                        <td>${formatNum(entry.total_edits)}</td>
+                        <td>${formatNum(entry.file_uploads)}</td>
+                        <td style="color: var(--accent-green)">${formatBytes(entry.bytes_changed)}</td>
+                    `;
+                    
+                    if (isAdmin) {
+                        rowHtml += `<td><button onclick="removeEditor('${entry.username}')" style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;">Remove</button></td>`;
+                    }
+                    
+                    row.innerHTML = rowHtml;
+                    tbody.appendChild(row);
+                });
+
+            } catch (e) {
+                console.error(e);
+                showToast("Failed to load event data", true);
+            }
+        }
+
+        // Add Editor
+        document.getElementById('addEditorBtn').addEventListener('click', async () => {
+            const input = document.getElementById('editorInput');
+            const username = input.value.trim();
+            if (!username) return;
+
+            const btn = document.getElementById('addEditorBtn');
+            btn.disabled = true;
+            btn.textContent = 'Adding...';
+
+            try {
+                const res = await fetch(`/api/events/${slug}/editors`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username})
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail);
+                
+                showToast(`Added ${username}!`);
+                input.value = '';
+                await fetchLiveStats();
+            } catch(e) {
+                showToast(e.message, true);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Add Editor';
+            }
+        });
+
+        // Remove Editor
+        window.removeEditor = async (username) => {
+            if(!confirm(`Remove ${username} from this event?`)) return;
+            try {
+                const res = await fetch(`/api/events/${slug}/editors/${username}`, {method: 'DELETE'});
+                if(!res.ok) throw new Error("Failed to remove");
+                showToast(`Removed ${username}`);
+                await fetchLiveStats();
+            } catch(e) {
+                showToast(e.message, true);
+            }
+        };
+
+        // Refresh
+        document.getElementById('refreshBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.textContent = 'Refreshing...';
+            try {
+                await fetch(`/api/events/${slug}/refresh`, {method: 'POST'});
+                await fetchLiveStats();
+            } catch(e) {
+                console.error(e);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Refresh Now';
+            }
+        });
+
+        init();
+    </script>
+</body>
+</html>

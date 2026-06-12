@@ -2,7 +2,7 @@ import time
 import requests
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Bulletproof path resolution so it can import backend regardless of where it's run from
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -10,118 +10,135 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sqlalchemy.orm import Session
 from backend.database import SessionLocal
 from backend import models
-from worker.config import EVENT_START_UTC, EVENT_END_UTC
 
-API_URL = "https://commons.wikimedia.org/w/api.php"
 HEADERS = {
-    "User-Agent": "WikimediaLiveLeaderboard/2.0 (https://github.com/shakil-mdshosen/wikimedia-live-leaderboard; shakil@example.com)"
+    "User-Agent": "WikimediaLiveLeaderboard/2.0 (https://github.com/shakil-mdshosen/wikimedia-live-leaderboard; mds.shakil@example.com)"
 }
 
-def fetch_user_stats(username: str) -> tuple[int, int, int]:
+def fetch_user_stats(username: str, event: models.Event) -> tuple[int, int, int]:
     """
-    Fetches exact edits, uploads, and bytes added for a user.
-    Returns: (total_edits, file_uploads, bytes_added)
+    Fetches the number of edits, file uploads, and bytes added for a specific user 
+    within the given event's time boundary and target wikis.
     """
-    start_str = EVENT_START_UTC.strftime("%Y-%m-%dT%H:%M:%SZ")
-    end_str = EVENT_END_UTC.strftime("%Y-%m-%dT%H:%M:%SZ")
     
-    edits_added = 0
-    uploads_added = 0
+    # Ensure times are UTC
+    start_utc = event.start_time.replace(tzinfo=timezone.utc) if event.start_time.tzinfo is None else event.start_time.astimezone(timezone.utc)
+    end_utc = event.end_time.replace(tzinfo=timezone.utc) if event.end_time.tzinfo is None else event.end_time.astimezone(timezone.utc)
+    
+    start_str = start_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_str = end_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+    
+    total_edits = 0
+    file_uploads = 0
     bytes_added = 0
     
-    # Track edit IDs to avoid double counting uploads as edits
-    tracked_revs = set()
-    
-    # 1. Process Uploads First (Log Events)
-    log_params = {
-        "action": "query",
-        "format": "json",
-        "list": "logevents",
-        "leuser": username,
-        "lestart": end_str,
-        "leend": start_str,
-        "ledir": "older",
-        "lelimit": "max",
-        "letype": "upload"
-    }
-    
-    while True:
-        response = requests.get(API_URL, params=log_params, headers=HEADERS)
-        response.raise_for_status()
-        data = response.json()
-        upload_logs = data.get("query", {}).get("logevents", [])
+    # Target wikis (comma separated)
+    wikis = [w.strip() for w in event.target_wikis.split(",") if w.strip()]
+    if not wikis:
+        wikis = ["commons.wikimedia.org"] # Fallback
         
-        for l in upload_logs:
-            revid = l.get('revid')
-            if revid:
-                tracked_revs.add(revid)
-            uploads_added += 1
-            
-        if "continue" in data:
-            log_params.update(data["continue"])
-        else:
-            break
-
-    # 2. Process Standard Edits
-    edit_params = {
-        "action": "query",
-        "format": "json",
-        "list": "usercontribs",
-        "ucuser": username,
-        "ucstart": end_str,
-        "ucend": start_str,
-        "ucdir": "older",
-        "uclimit": "max",
-        "ucprop": "ids|title|timestamp|flags|sizediff"
-    }
-    
-    while True:
-        response = requests.get(API_URL, params=edit_params, headers=HEADERS)
-        response.raise_for_status()
-        data = response.json()
-        contribs = data.get("query", {}).get("usercontribs", [])
+    for wiki in wikis:
+        api_url = f"https://{wiki}/w/api.php"
         
-        for c in contribs:
-            revid = c.get('revid')
-            # Only count as an edit if it wasn't already counted as an upload
-            if revid not in tracked_revs:
-                edits_added += 1
+        # 1. Fetch User Contributions (for total edits and bytes added)
+        edit_params = {
+            "action": "query",
+            "format": "json",
+            "list": "usercontribs",
+            "ucuser": username,
+            "ucstart": end_str,    # For ucdir=older, ucstart must be LATER than ucend
+            "ucend": start_str,
+            "ucdir": "older",
+            "uclimit": "max",
+            "ucprop": "ids|title|timestamp|flags|sizediff"
+        }
+        
+        # Paginate through contributions
+        while True:
+            response = requests.get(api_url, params=edit_params, headers=HEADERS)
+            response.raise_for_status()
+            data = response.json()
+            contribs = data.get("query", {}).get("usercontribs", [])
             
-            # Always add the bytes, even for uploads
-            diff = c.get("sizediff", 0)
-            if diff > 0:
-                bytes_added += diff
+            for c in contribs:
+                total_edits += 1
+                diff = c.get("sizediff", 0)
+                if diff > 0:
+                    bytes_added += diff
+                    
+            if "continue" in data:
+                edit_params.update(data["continue"])
+            else:
+                break
                 
-        if "continue" in data:
-            edit_params.update(data["continue"])
-        else:
-            break
+        # 2. Fetch Log Events (specifically for Uploads)
+        # Note: If the event only targets non-Commons, this might return 0 uploads, which is fine.
+        log_params = {
+            "action": "query",
+            "format": "json",
+            "list": "logevents",
+            "leuser": username,
+            "letype": "upload",
+            "leaction": "upload/upload",
+            "lestart": end_str,
+            "leend": start_str,
+            "ledir": "older",
+            "lelimit": "max"
+        }
+        
+        while True:
+            response = requests.get(api_url, params=log_params, headers=HEADERS)
+            response.raise_for_status()
+            data = response.json()
+            logs = data.get("query", {}).get("logevents", [])
+            
+            for l in logs:
+                # Deduplicate: if an upload also creates a page, it's already counted in usercontribs.
+                # Standard practice is to count uploads separately and ignore the overlap in 'total_edits', 
+                # or consider it a distinct metric.
+                file_uploads += 1
+                
+            if "continue" in data:
+                log_params.update(data["continue"])
+            else:
+                break
 
-    return edits_added, uploads_added, bytes_added
+    return total_edits, file_uploads, bytes_added
 
-def poll_all_users():
+def poll_all_active_events():
+    """Iterates through all active events and updates their editors' stats."""
     db = SessionLocal()
     try:
-        editors = db.query(models.Editor).all()
-        for editor in editors:
-            print(f"Fetching stats for {editor.username}...")
-            try:
-                edits, uploads, bytes_added = fetch_user_stats(editor.username)
-                editor.total_edits = edits
-                editor.file_uploads = uploads
-                editor.bytes_added = bytes_added
-                db.commit()
-                print(f"Updated {editor.username}: {edits} edits, {uploads} uploads, {bytes_added} bytes.")
-            except Exception as e:
-                print(f"Error fetching stats for {editor.username}: {e}")
-                db.rollback()
+        now_utc = datetime.utcnow()
+        # Active events: start_time is in the past, end_time is in the future (or recently finished)
+        events = db.query(models.Event).all()
+        
+        for event in events:
+            # You can add logic here to only poll events that are currently active
+            # For now, we poll all events (or you could filter by datetime)
+            print(f"Polling event: {event.name} ({event.slug})")
+            
+            for editor in event.editors:
+                try:
+                    edits, uploads, b_added = fetch_user_stats(editor.username, event)
+                    editor.total_edits = edits
+                    editor.file_uploads = uploads
+                    editor.bytes_added = b_added
+                    db.commit()
+                except Exception as e:
+                    db.rollback()
+                    print(f"Error updating stats for {editor.username} in {event.slug}: {e}")
+                    
     finally:
         db.close()
 
 if __name__ == "__main__":
-    print("Starting 5-minute poller...")
+    print("Starting Multi-Tenant 5-minute poller...")
     while True:
-        print(f"[{datetime.utcnow().isoformat()}] Running polling cycle...")
-        poll_all_users()
-        print("Cycle complete. Sleeping for 5 minutes...")
+        try:
+            print(f"[{datetime.utcnow().isoformat()}] Running polling cycle...")
+            poll_all_active_events()
+        except Exception as e:
+            print(f"Polling cycle failed: {e}")
+            
         time.sleep(300)
