@@ -31,47 +31,68 @@ except Exception as e:
     cursor.execute("SELECT username, added_at FROM editors")
     legacy_editors = [(row[0], row[1], 0, 0, 0) for row in cursor.fetchall()]
 
-# 3. Import new SQLAlchemy Models to initialize the new schema safely
-import sys
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from backend.database import SessionLocal, engine
-from backend import models
+# 3. Create new tables via raw SQL so we don't need SQLAlchemy installed
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    username VARCHAR UNIQUE,
+    role VARCHAR,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+''')
 
-print("Initializing new database tables...")
-models.Base.metadata.create_all(bind=engine)
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY,
+    slug VARCHAR UNIQUE,
+    name VARCHAR,
+    description VARCHAR,
+    start_time DATETIME,
+    end_time DATETIME,
+    target_wikis VARCHAR,
+    creator_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+''')
 
-db = SessionLocal()
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS event_editors (
+    id INTEGER PRIMARY KEY,
+    event_id INTEGER,
+    username VARCHAR,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    total_edits INTEGER DEFAULT 0,
+    file_uploads INTEGER DEFAULT 0,
+    bytes_added INTEGER DEFAULT 0
+)
+''')
 
 # 4. Create MdsShakil User
-admin = db.query(models.User).filter(models.User.username == "MdsShakil").first()
-if not admin:
+cursor.execute("SELECT id FROM users WHERE username = 'MdsShakil'")
+admin_row = cursor.fetchone()
+if not admin_row:
     print("Creating superadmin user MdsShakil...")
-    admin = models.User(username="MdsShakil", role="superadmin")
-    db.add(admin)
-    db.commit()
-    db.refresh(admin)
+    cursor.execute("INSERT INTO users (username, role) VALUES ('MdsShakil', 'superadmin')")
+    admin_id = cursor.lastrowid
+else:
+    admin_id = admin_row[0]
 
 # 5. Create Legacy Event
 event_slug = "live-edit-a-thon"
-legacy_event = db.query(models.Event).filter(models.Event.slug == event_slug).first()
-if not legacy_event:
+cursor.execute("SELECT id FROM events WHERE slug = ?", (event_slug,))
+event_row = cursor.fetchone()
+if not event_row:
     print("Creating legacy event to house current editors...")
-    # Using the old hardcoded times
-    start_time = datetime(2026, 6, 11, 18, 0, 0) # UTC equivalent to 12th midnight BST
-    end_time = datetime(2026, 6, 12, 17, 59, 59) # UTC equivalent to 12th 11:59pm BST
+    start_time = "2026-06-11 18:00:00.000000"
+    end_time = "2026-06-12 17:59:59.000000"
     
-    legacy_event = models.Event(
-        slug=event_slug,
-        name="Dhaka Live Edit-a-thon (Legacy)",
-        description="The original live leaderboard event.",
-        start_time=start_time,
-        end_time=end_time,
-        target_wikis="commons.wikimedia.org",
-        creator_id=admin.id
-    )
-    db.add(legacy_event)
-    db.commit()
-    db.refresh(legacy_event)
+    cursor.execute("""
+        INSERT INTO events (slug, name, description, start_time, end_time, target_wikis, creator_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (event_slug, "Dhaka Live Edit-a-thon (Legacy)", "The original live leaderboard event.", start_time, end_time, "commons.wikimedia.org", admin_id))
+    legacy_event_id = cursor.lastrowid
+else:
+    legacy_event_id = event_row[0]
 
 # 6. Port editors
 print(f"Porting {len(legacy_editors)} editors to the new event...")
@@ -79,41 +100,22 @@ ported_count = 0
 for e in legacy_editors:
     username, added_at_str, edits, uploads, b_added = e
     
-    # Check if they exist
-    existing = db.query(models.EventEditor).filter(
-        models.EventEditor.event_id == legacy_event.id,
-        models.EventEditor.username == username
-    ).first()
-    
-    if not existing:
-        # Convert added_at string back to datetime if necessary
-        try:
-            added_at = datetime.strptime(added_at_str, "%Y-%m-%d %H:%M:%S.%f")
-        except:
-            added_at = datetime.utcnow()
-            
-        new_ee = models.EventEditor(
-            event_id=legacy_event.id,
-            username=username,
-            added_at=added_at,
-            total_edits=edits,
-            file_uploads=uploads,
-            bytes_added=b_added
-        )
-        db.add(new_ee)
+    cursor.execute("SELECT id FROM event_editors WHERE event_id = ? AND username = ?", (legacy_event_id, username))
+    if not cursor.fetchone():
+        cursor.execute("""
+            INSERT INTO event_editors (event_id, username, added_at, total_edits, file_uploads, bytes_added)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (legacy_event_id, username, added_at_str, edits, uploads, b_added))
         ported_count += 1
-
-db.commit()
-db.close()
 
 # 7. Clean up legacy table
 try:
     cursor.execute("DROP TABLE editors")
-    conn.commit()
     print("Dropped legacy 'editors' table to free up space.")
 except Exception as e:
     print(f"Could not drop legacy table: {e}")
 
+conn.commit()
 conn.close()
 
 print(f"Migration V2 Complete! Successfully ported {ported_count} legacy editors into the new SaaS structure.")
