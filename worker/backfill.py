@@ -34,44 +34,49 @@ def backfill_user(username: str):
     }
     
     try:
-        response = requests.get(API_URL, params=params, headers=headers)
-        response.raise_for_status()
-        data = response.json()
-        
-        contribs = data.get("query", {}).get("usercontribs", [])
-        
         edits_added = 0
         uploads_added = 0
         bytes_added = 0
         
-        # 1. Process Edits
-        for c in contribs:
-            revid = c.get('revid')
-            if not revid: continue
+        # 1. Process Edits (with Pagination)
+        while True:
+            response = requests.get(API_URL, params=params, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            contribs = data.get("query", {}).get("usercontribs", [])
             
-            edit_id_str = f"rev_{revid}"
-            if db.query(models.EditLog).filter(models.EditLog.edit_id == edit_id_str).first():
-                continue
+            for c in contribs:
+                revid = c.get('revid')
+                if not revid: continue
                 
-            ts = datetime.strptime(c.get("timestamp"), "%Y-%m-%dT%H:%M:%SZ")
-            ns = c.get("ns")
-            diff = max(0, c.get("sizediff", 0)) # Outreach dashboards only track positive bytes added
-            is_new = "new" in c
-            
-            log = models.EditLog(
-                edit_id=edit_id_str,
-                username=username,
-                namespace=ns,
-                is_new_page=is_new,
-                is_upload=False,
-                timestamp=ts,
-                bytes_changed=diff
-            )
-            db.add(log)
-            edits_added += 1
-            bytes_added += diff
+                edit_id_str = f"rev_{revid}"
+                if db.query(models.EditLog).filter(models.EditLog.edit_id == edit_id_str).first():
+                    continue
+                    
+                ts = datetime.strptime(c.get("timestamp"), "%Y-%m-%dT%H:%M:%SZ")
+                ns = c.get("ns")
+                diff = max(0, c.get("sizediff", 0))
+                is_new = "new" in c
+                
+                log = models.EditLog(
+                    edit_id=edit_id_str,
+                    username=username,
+                    namespace=ns,
+                    is_new_page=is_new,
+                    is_upload=False,
+                    timestamp=ts,
+                    bytes_changed=diff
+                )
+                db.add(log)
+                edits_added += 1
+                bytes_added += diff
+                
+            if "continue" in data:
+                params.update(data["continue"])
+            else:
+                break
 
-        # 2. Process Uploads via logevents
+        # 2. Process Uploads via logevents (with Pagination)
         log_params = {
             "action": "query",
             "format": "json",
@@ -83,36 +88,44 @@ def backfill_user(username: str):
             "lelimit": "max",
             "letype": "upload"
         }
-        response_logs = requests.get(API_URL, params=log_params, headers=headers)
-        response_logs.raise_for_status()
-        upload_logs = response_logs.json().get("query", {}).get("logevents", [])
         
-        for l in upload_logs:
-            revid = l.get('revid')
-            if not revid: continue
+        while True:
+            response_logs = requests.get(API_URL, params=log_params, headers=headers)
+            response_logs.raise_for_status()
+            log_data = response_logs.json()
+            upload_logs = log_data.get("query", {}).get("logevents", [])
             
-            edit_id_str = f"rev_{revid}"
-            existing = db.query(models.EditLog).filter(models.EditLog.edit_id == edit_id_str).first()
-            
-            if existing:
-                if not existing.is_upload:
-                    existing.is_upload = True
+            for l in upload_logs:
+                revid = l.get('revid')
+                if not revid: continue
+                
+                edit_id_str = f"rev_{revid}"
+                existing = db.query(models.EditLog).filter(models.EditLog.edit_id == edit_id_str).first()
+                
+                if existing:
+                    if not existing.is_upload:
+                        existing.is_upload = True
+                        uploads_added += 1
+                        edits_added -= 1
+                else:
+                    ts = datetime.strptime(l.get("timestamp"), "%Y-%m-%dT%H:%M:%SZ")
+                    ns = l.get("ns")
+                    log = models.EditLog(
+                        edit_id=edit_id_str,
+                        username=username,
+                        namespace=ns,
+                        is_new_page=True,
+                        is_upload=True,
+                        timestamp=ts,
+                        bytes_changed=0
+                    )
+                    db.add(log)
                     uploads_added += 1
-                    edits_added -= 1 # Convert this from an edit to an upload
+                    
+            if "continue" in log_data:
+                log_params.update(log_data["continue"])
             else:
-                ts = datetime.strptime(l.get("timestamp"), "%Y-%m-%dT%H:%M:%SZ")
-                ns = l.get("ns")
-                log = models.EditLog(
-                    edit_id=edit_id_str,
-                    username=username,
-                    namespace=ns,
-                    is_new_page=True,
-                    is_upload=True,
-                    timestamp=ts,
-                    bytes_changed=0 # Bytes added already handled or ignored
-                )
-                db.add(log)
-                uploads_added += 1
+                break
             
         # Update global stats
         if edits_added > 0 or uploads_added > 0:
