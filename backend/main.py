@@ -51,7 +51,7 @@ def add_editor(editor_data: EditorAdd, background_tasks: BackgroundTasks, db: Se
     db.commit()
     
     # Trigger background backfill
-    background_tasks.add_task(backfill.backfill_user, username, db)
+    background_tasks.add_task(backfill.backfill_user, username)
     
     return {"message": f"Editor {username} added and backfill started."}
 

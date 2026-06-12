@@ -6,11 +6,14 @@ from worker.config import EVENT_START_UTC, EVENT_END_UTC
 
 API_URL = "https://commons.wikimedia.org/w/api.php"
 
-def backfill_user(username: str, db: Session):
+def backfill_user(username: str):
     """
     Fetches the user's contributions since the start of the event
     using the MediaWiki Action API, and adds them to the database.
     """
+    from backend.database import SessionLocal
+    db = SessionLocal()
+    
     start_str = EVENT_START_UTC.strftime("%Y-%m-%dT%H:%M:%SZ")
     end_str = EVENT_END_UTC.strftime("%Y-%m-%dT%H:%M:%SZ")
     
@@ -76,3 +79,5 @@ def backfill_user(username: str, db: Session):
         
     except Exception as e:
         print(f"Error backfilling user {username}: {e}")
+    finally:
+        db.close()
