@@ -9,9 +9,9 @@ from backend.database import get_db
 from backend.models import User
 
 # Configuration
-# In production, these should be loaded from environment variables
-WIKIMEDIA_CLIENT_ID = os.getenv("WIKIMEDIA_CLIENT_ID", "9f0f090b0ef2fd6757f51900b52df19b")
-WIKIMEDIA_CLIENT_SECRET = os.getenv("WIKIMEDIA_CLIENT_SECRET", "e8c9f202c985f7598a273ad483b277324f80c1b5")
+# Loaded from environment variables (Toolforge)
+WIKIMEDIA_CLIENT_ID = os.getenv("WIKIMEDIA_CLIENT_ID")
+WIKIMEDIA_CLIENT_SECRET = os.getenv("WIKIMEDIA_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("OAUTH_CALLBACK_URL", "https://live.toolforge.org/oauth/callback")
 
 # OAuth Endpoints

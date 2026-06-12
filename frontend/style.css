@@ -257,8 +257,8 @@ tbody tr:hover {
     opacity: 1;
 }
 
-.toast.hidden {
-    display: none;
+.hidden {
+    display: none !important;
 }
 
 /* Mobile Responsiveness */
