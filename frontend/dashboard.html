@@ -116,8 +116,8 @@
                     name: document.getElementById('evName').value,
                     slug: document.getElementById('evSlug').value.toLowerCase(),
                     target_wikis: document.getElementById('evWikis').value,
-                    start_time: new Date(startLocal).toISOString(),
-                    end_time: new Date(endLocal).toISOString()
+                    start_time: new Date(startLocal + '+06:00').toISOString(),
+                    end_time: new Date(endLocal + '+06:00').toISOString()
                 };
 
                 const btn = e.target.querySelector('button[type="submit"]');

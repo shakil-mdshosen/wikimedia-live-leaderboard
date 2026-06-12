@@ -118,11 +118,10 @@
             }, 3000);
         };
 
-        function toLocalDatetimeString(isoString) {
-            const date = new Date(isoString);
-            const tzOffset = date.getTimezoneOffset() * 60000;
-            const localISOTime = (new Date(date.getTime() - tzOffset)).toISOString().slice(0, 16);
-            return localISOTime;
+        function toUTC6DatetimeString(isoString) {
+            const date = new Date(isoString + 'Z');
+            date.setUTCHours(date.getUTCHours() + 6);
+            return date.toISOString().slice(0, 16);
         }
 
         async function init() {
@@ -153,8 +152,8 @@
                 document.getElementById('evName').value = eventData.name;
                 document.getElementById('evSlug').value = eventData.slug;
                 document.getElementById('evWikis').value = eventData.target_wikis;
-                document.getElementById('evStart').value = toLocalDatetimeString(eventData.start_time);
-                document.getElementById('evEnd').value = toLocalDatetimeString(eventData.end_time);
+                document.getElementById('evStart').value = toUTC6DatetimeString(eventData.start_time);
+                document.getElementById('evEnd').value = toUTC6DatetimeString(eventData.end_time);
 
                 // Render Table
                 const tbody = document.getElementById('editorsBody');
@@ -193,8 +192,8 @@
                 name: document.getElementById('evName').value,
                 slug: newSlug,
                 target_wikis: document.getElementById('evWikis').value,
-                start_time: new Date(startLocal).toISOString(),
-                end_time: new Date(endLocal).toISOString(),
+                start_time: new Date(startLocal + '+06:00').toISOString(),
+                end_time: new Date(endLocal + '+06:00').toISOString(),
                 description: eventData.description
             };
 
